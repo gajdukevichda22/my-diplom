@@ -1,0 +1,71 @@
+{% extends 'models_manager/base.html' %}
+
+{% block content %}
+<h2>Папка: {{ category.name }}</h2>
+<p><strong>Родительская папка:</strong> 
+   {% if category.parent %}<a href="{% url 'models_manager:category_detail' category.parent.id %}">{{ category.parent.name }}</a>{% else %}—{% endif %}
+</p>
+
+{% if subcategories %}
+<h3>Подпапки</h3>
+<ul>
+    {% for sub in subcategories %}
+    <li>
+        <a href="{% url 'models_manager:category_detail' sub.id %}">{{ sub.name }}</a>
+        {% if user.is_superuser %}
+            <a href="{% url 'models_manager:category_delete' sub.id %}" class="btn btn-sm btn-danger ms-2" onclick="return confirm('Удалить подпапку «{{ sub.name }}»? Модели останутся без папки.')">Удалить</a>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<h3>Модели в этой папке</h3>
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto"><input type="text" name="q" class="form-control" placeholder="Поиск по названию" value="{{ request.GET.q }}"></div>
+    <div class="col-auto"><input type="text" name="material" class="form-control" placeholder="Материал" value="{{ request.GET.material }}"></div>
+    <div class="col-auto">
+        <select name="status" class="form-select">
+            <option value="">Все статусы</option>
+            {% for val, label in model.STATUS_CHOICES %}
+            <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto"><input type="text" name="order_number" class="form-control" placeholder="Номер заказа" value="{{ request.GET.order_number }}"></div>
+    <div class="col-auto"><button class="btn btn-primary">Фильтр</button></div>
+    <div class="col-auto"><a href="{% url 'models_manager:category_detail' category.id %}" class="btn btn-secondary">Сброс</a></div>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Название модели</th>
+            <th>Версия "Готов к печати"</th>
+            <th>Материал</th>
+            <th>Статус</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in models %}
+        <tr>
+            <td><a href="{% url 'models_manager:model_detail' m.id %}">{{ m.name }}</a></td>
+            <td>v{{ m.version }} {% if m.status == 'ready' %}✅{% endif %}</td>
+            <td>{{ m.material|default:"—" }}</td>
+            <td>{{ m.get_status_display }}</td>
+            <td>
+                <a href="{% url 'models_manager:model_detail' m.id %}" class="btn btn-sm btn-info">Просмотр версий</a>
+                {% if user.is_superuser %}
+                    <a href="{% url 'models_manager:delete_model_group' m.name %}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить ВСЕ версии модели {{ m.name }}?')">Удалить модель</a>
+                {% endif %}
+            </table>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">Нет моделей, соответствующих фильтру</td</tr
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'models_manager:category_list' %}" class="btn btn-secondary">Назад к списку папок</a>
+{% endblock %}

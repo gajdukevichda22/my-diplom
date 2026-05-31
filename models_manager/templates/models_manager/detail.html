@@ -1,0 +1,264 @@
+{% extends 'models_manager/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="viewer-container">
+            <div id="viewer" style="height: 500px; background: radial-gradient(circle at 30% 20%, #1a1a2e, #0f0f1a); border-radius: 20px; position: relative; overflow: hidden; box-shadow: 0 20px 35px rgba(0,0,0,0.3);"></div>
+            <div id="viewer-controls" style="position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); border-radius: 30px; padding: 5px 10px; display: flex; gap: 8px; z-index: 10;">
+                <button id="reset-view" class="btn btn-sm btn-outline-light" title="Сбросить вид"><i class="fas fa-sync-alt"></i></button>
+                <button id="toggle-axes" class="btn btn-sm btn-outline-light" title="Показать оси"><i class="fas fa-axes"></i></button>
+                <button id="toggle-wireframe" class="btn btn-sm btn-outline-light" title="Каркасный режим"><i class="fas fa-border-all"></i></button>
+            </div>
+            <div id="status" class="mt-2 text-muted text-center"><i class="fas fa-spinner fa-spin"></i> Загрузка 3D-модели...</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-hover p-3">
+            <h3><i class="fas fa-cube"></i> {{ model.name }} <span class="badge bg-secondary">v{{ model.version }}</span></h3>
+            <hr>
+            <p><i class="fas fa-cubes"></i> <strong>Материал:</strong> {{ model.material|default:"—" }}</p>
+            <p><i class="fas fa-tag"></i> <strong>Статус:</strong> <span class="status-{{ model.status }}"><i class="fas {% if model.status == 'draft' %}fa-pencil-alt{% elif model.status == 'review' %}fa-eye{% elif model.status == 'ready' %}fa-check-circle{% else %}fa-check-double{% endif %}"></i> {{ model.get_status_display }}</span></p>
+            <p><i class="fas fa-user"></i> <strong>Автор:</strong> {{ model.uploaded_by.username }}</p>
+            <p><i class="fas fa-calendar-alt"></i> <strong>Дата:</strong> {{ model.uploaded_at|date:"d.m.Y H:i" }}</p>
+            <p><i class="fas fa-folder"></i> <strong>Папка:</strong> {{ model.category.name|default:"—" }}</p>
+            <p><i class="fas fa-user-tie"></i> <strong>Заказчик:</strong> {{ model.customer_name|default:"—" }}</p>
+            <p><i class="fas fa-phone"></i> <strong>Телефон:</strong> {{ model.customer_phone|default:"—" }}</p>
+            <p><i class="fas fa-envelope"></i> <strong>Email:</strong> {{ model.customer_email|default:"—" }}</p>
+            
+            <div class="d-grid gap-2">
+                <a href="{{ model.file.url }}" download class="btn btn-primary"><i class="fas fa-download"></i> Скачать STL</a>
+                {% if user.is_staff %}
+                <form method="post" action="{% url 'models_manager:change_status' model.id %}">
+                    {% csrf_token %}
+                    <div class="input-group">
+                        <select name="status" class="form-select">
+                            <option value="draft" {% if model.status == 'draft' %}selected{% endif %}>Черновик</option>
+                            <option value="review" {% if model.status == 'review' %}selected{% endif %}>На проверке</option>
+                            <option value="ready" {% if model.status == 'ready' %}selected{% endif %}>Готов к печати</option>
+                            <option value="printed" {% if model.status == 'printed' %}selected{% endif %}>Напечатано</option>
+                        </select>
+                        <button type="submit" class="btn btn-outline-secondary"><i class="fas fa-save"></i> Изменить статус</button>
+                    </div>
+                </form>
+                {% endif %}
+                <a href="{% url 'models_manager:set_active' model.id %}" class="btn btn-success"><i class="fas fa-star"></i> Пометить как "Готов к печати"</a>
+            </div>
+
+            <hr>
+            <h4><i class="fas fa-history"></i> История версий</h4>
+            <ul class="list-unstyled">
+                {% for v in versions %}
+                <li class="mb-2">
+                    <strong>v{{ v.version }}</strong>
+                    {% if v.status == 'ready' %}<span class="text-success"><i class="fas fa-check-circle"></i> Готов к печати</span>{% endif %}
+                    - <a href="{% url 'models_manager:model_detail' v.id %}"><i class="fas fa-eye"></i> Просмотр</a>
+                    {% if user.is_superuser %}
+                        - <a href="{% url 'models_manager:delete_version' v.id %}" class="text-danger" onclick="return confirm('Удалить версию v{{ v.version }}?')"><i class="fas fa-trash"></i> Удалить</a>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+
+            <hr>
+            <h4><i class="fas fa-comments"></i> Комментарии</h4>
+            <div style="max-height: 300px; overflow-y: auto;" class="mb-3">
+                {% for comment in model.comments.all %}
+                    <div class="card mb-2">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between">
+                                <strong><i class="fas fa-user-circle"></i> {{ comment.author.username }}</strong>
+                                <small class="text-muted"><i class="fas fa-clock"></i> {{ comment.created_at|date:"d.m.Y H:i" }}</small>
+                            </div>
+                            <p class="mb-1">{{ comment.text|linebreaksbr }}</p>
+                            {% if user.is_superuser or comment.author == user %}
+                                <a href="{% url 'models_manager:delete_comment' comment.id %}" class="text-danger small" onclick="return confirm('Удалить комментарий?')"><i class="fas fa-trash"></i> Удалить</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="text-muted"><i class="fas fa-info-circle"></i> Нет комментариев. Будьте первым!</p>
+                {% endfor %}
+            </div>
+
+            <form method="post" action="{% url 'models_manager:add_comment' model.id %}">
+                {% csrf_token %}
+                <div class="input-group">
+                    {{ comment_form.text }}
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Отправить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+    var url = "{{ model.file.url }}";
+    var container = document.getElementById('viewer');
+    var statusDiv = document.getElementById('status');
+    
+    if (!url) {
+        container.innerHTML = '<div style="color:red; padding:20px;">Нет файла</div>';
+    } else {
+        var scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+        
+        var camera = new THREE.PerspectiveCamera(45, container.clientWidth/container.clientHeight, 0.1, 1000);
+        camera.position.set(3, 2, 3);
+        
+        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+        
+        var controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 1.5;
+        controls.zoomSpeed = 1.2;
+        controls.enableZoom = true;
+        controls.enablePan = true;
+        
+        var ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        var mainLight = new THREE.DirectionalLight(0xffffff, 1);
+        mainLight.position.set(2, 3, 2);
+        mainLight.castShadow = true;
+        scene.add(mainLight);
+        var fillLight = new THREE.PointLight(0x6688ff, 0.5);
+        fillLight.position.set(1, 1, 1);
+        scene.add(fillLight);
+        var backLight = new THREE.PointLight(0xffaa66, 0.3);
+        backLight.position.set(-1, 1, -1);
+        scene.add(backLight);
+        
+        var gridHelper = new THREE.GridHelper(5, 20, 0x88aaff, 0x335588);
+        gridHelper.position.y = -0.8;
+        scene.add(gridHelper);
+        
+        var axesHelper = new THREE.AxesHelper(2);
+        axesHelper.visible = true;
+        scene.add(axesHelper);
+        
+        var currentMesh = null;
+        var wireframeMode = false;
+        
+        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка STL...';
+        
+        var loader = new THREE.STLLoader();
+        loader.load(url, function(geometry) {
+            scene.remove(axesHelper);
+            
+            var material = new THREE.MeshStandardMaterial({ 
+                color: 0x3a86ff, 
+                emissive: 0x001133,
+                roughness: 0.3,
+                metalness: 0.8,
+                flatShading: false
+            });
+            var mesh = new THREE.Mesh(geometry, material);
+            
+          
+            mesh.rotation.z = -Math.PI / 2;
+            mesh.rotation.x = -Math.PI / 2;
+            
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+            currentMesh = mesh;
+            
+            // Центрирование и масштабирование
+            var bbox = new THREE.Box3().setFromObject(mesh);
+            var center = bbox.getCenter(new THREE.Vector3());
+            mesh.position.sub(center);
+            
+            var size = bbox.getSize(new THREE.Vector3());
+            var maxDim = Math.max(size.x, size.y, size.z);
+            var scale = 2.5 / maxDim;
+            mesh.scale.set(scale, scale, scale);
+            
+            mesh.updateMatrixWorld();
+            var bbox2 = new THREE.Box3().setFromObject(mesh);
+            var center2 = bbox2.getCenter(new THREE.Vector3());
+            mesh.position.sub(center2);
+            
+            camera.position.set(1.5, 1.2, 1.8);
+            controls.target.set(0, 0, 0);
+            controls.update();
+            
+            statusDiv.innerHTML = '<i class="fas fa-check-circle text-success"></i> Модель загружена';
+        }, function(xhr) {
+            var percent = Math.floor((xhr.loaded / xhr.total) * 100);
+            statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка: ' + percent + '%';
+        }, function(error) {
+            console.error(error);
+            statusDiv.innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i> Ошибка загрузки STL. Файл повреждён.';
+        });
+        
+        document.getElementById('reset-view').addEventListener('click', function() {
+            camera.position.set(1.5, 1.2, 1.8);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        });
+        
+        document.getElementById('toggle-axes').addEventListener('click', function() {
+            axesHelper.visible = !axesHelper.visible;
+        });
+        
+        document.getElementById('toggle-wireframe').addEventListener('click', function() {
+            if (currentMesh) {
+                wireframeMode = !wireframeMode;
+                currentMesh.material.wireframe = wireframeMode;
+            }
+        });
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', function() {
+            var w = container.clientWidth, h = container.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+    }
+</script>
+
+<style>
+    .viewer-container {
+        position: relative;
+        background: linear-gradient(145deg, #1a1a2e, #0f0f1a);
+        border-radius: 24px;
+        padding: 8px;
+        box-shadow: 0 20px 35px rgba(0,0,0,0.3);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    #viewer {
+        border-radius: 18px;
+        overflow: hidden;
+    }
+    #viewer-controls button {
+        background: rgba(20,20,40,0.8);
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.2s ease;
+    }
+    #viewer-controls button:hover {
+        background: rgba(58,134,255,0.8);
+        transform: scale(1.05);
+    }
+    #status {
+        margin-top: 12px;
+        font-size: 0.9rem;
+        text-align: center;
+        color: #aaa;
+    }
+</style>
+{% endblock %}

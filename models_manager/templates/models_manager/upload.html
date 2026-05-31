@@ -1,0 +1,25 @@
+{% extends 'models_manager/base.html' %}
+
+{% block content %}
+<h2>Загрузка новой модели</h2>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="mb-3"><label class="form-label">Название модели</label>{{ form.name }}</div>
+    <div class="mb-3"><label class="form-label">Файл (STL, OBJ, STEP, 3MF)</label>{{ form.file }}<div class="form-text">Макс. 200 МБ</div></div>
+    <div class="mb-3"><label class="form-label">Папка</label>{{ form.category }}</div>
+    <div class="mb-3"><label class="form-label">Материал</label>{{ form.material }}</div>
+    <div class="mb-3" id="div_custom_material" style="display:none;"><label class="form-label">Свой материал</label>{{ form.custom_material }}</div>
+    <div class="mb-3"><label class="form-label">Заказчик</label>{{ form.customer_name }}</div>
+    <div class="mb-3"><label class="form-label">Телефон</label>{{ form.customer_phone }}</div>
+    <div class="mb-3"><label class="form-label">Email</label>{{ form.customer_email }}</div>
+    <div class="mb-3"><label class="form-label">Комментарий</label>{{ form.comment }}</div>
+    <div class="mb-3"><label class="form-label">Версия (оставьте пустым для автоматической)</label><input type="text" name="version" class="form-control"></div>
+    <button type="submit" class="btn btn-primary">Загрузить</button>
+    <a href="{% url 'models_manager:model_list' %}" class="btn btn-secondary">Отмена</a>
+</form>
+<script>
+    var sel = document.getElementById('id_material_select');
+    var div = document.getElementById('div_custom_material');
+    if(sel && div) sel.addEventListener('change', function(){ div.style.display = sel.value === 'Другой' ? 'block' : 'none'; });
+</script>
+{% endblock %}

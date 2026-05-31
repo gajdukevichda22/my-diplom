@@ -1,0 +1,22 @@
+# Виртуальное окружение
+venv/
+env/
+.venv/
+
+# Кэш Python
+__pycache__/
+*.pyc
+
+# База данных
+db.sqlite3
+
+# Загруженные файлы (модели)
+media/
+
+# Файлы IDE
+.vscode/
+.idea/
+*.iml
+
+# Логи
+*.log

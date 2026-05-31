@@ -1,0 +1,147 @@
+{% extends 'models_manager/base.html' %}
+
+{% block content %}
+<div class="card card-hover p-3">
+    <h2><i class="fas fa-list-ul"></i> Список моделей</h2>
+    <hr>
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-auto">
+            <input type="text" name="q" class="form-control" placeholder="Поиск" value="{{ request.GET.q }}">
+        </div>
+        <div class="col-auto">
+            <input type="text" name="material" class="form-control" placeholder="Материал" value="{{ request.GET.material }}">
+        </div>
+        <div class="col-auto">
+            <select name="status" class="form-select">
+                <option value="">Все статусы</option>
+                {% for val, label in status_choices %}
+                    <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <select name="category" class="form-select">
+                <option value="">Все папки</option>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if request.GET.category|add:"0" == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <input type="text" name="customer_name" class="form-control" placeholder="Заказчик" value="{{ request.GET.customer_name }}">
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary"><i class="fas fa-filter"></i> Фильтр</button>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'models_manager:model_list' %}" class="btn btn-secondary"><i class="fas fa-undo-alt"></i> Сброс</a>
+        </div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th><a href="?{% if request.GET %}{{ request.GET.urlencode }}&sort=name&dir={% if sort == 'name' and dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}sort=name&dir=asc{% endif %}"><i class="fas fa-font"></i> Название</a>{% if sort == 'name' %}{% if dir == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</th>
+                    <th><a href="?{% if request.GET %}{{ request.GET.urlencode }}&sort=version&dir={% if sort == 'version' and dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}sort=version&dir=asc{% endif %}"><i class="fas fa-code-branch"></i> Версия</a>{% if sort == 'version' %}{% if dir == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</th>
+                    <th><a href="?{% if request.GET %}{{ request.GET.urlencode }}&sort=material&dir={% if sort == 'material' and dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}sort=material&dir=asc{% endif %}"><i class="fas fa-cubes"></i> Материал</a>{% if sort == 'material' %}{% if dir == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</th>
+                    <th><a href="?{% if request.GET %}{{ request.GET.urlencode }}&sort=status&dir={% if sort == 'status' and dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}sort=status&dir=asc{% endif %}"><i class="fas fa-tag"></i> Статус</a>{% if sort == 'status' %}{% if dir == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</th>
+                    <th><a href="?{% if request.GET %}{{ request.GET.urlencode }}&sort=customer_name&dir={% if sort == 'customer_name' and dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}sort=customer_name&dir=asc{% endif %}"><i class="fas fa-user"></i> Заказчик</a>{% if sort == 'customer_name' %}{% if dir == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</th>
+                    <th><a href="?{% if request.GET %}{{ request.GET.urlencode }}&sort=category&dir={% if sort == 'category' and dir == 'asc' %}desc{% else %}asc{% endif %}{% else %}sort=category&dir=asc{% endif %}"><i class="fas fa-folder"></i> Папка</a>{% if sort == 'category' %}{% if dir == 'asc' %} ▲{% else %} ▼{% endif %}{% endif %}</th>
+                    <th><i class="fas fa-cogs"></i> Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in models %}
+                <tr>
+                    <td><a href="{% url 'models_manager:model_detail' m.id %}"><i class="fas fa-cube"></i> {{ m.name }}</a></td>
+                    <td><span class="badge bg-secondary">v{{ m.version }}</span>{% if m.status == 'ready' %} <i class="fas fa-check-circle text-success"></i>{% endif %}</td>
+                    <td>
+                        <form method="post" action="{% url 'models_manager:change_material' m.id %}" style="display: flex; gap: 5px;">
+                            {% csrf_token %}
+                            <input type="text" name="material" value="{{ m.material|default:'' }}" class="form-control form-control-sm" style="width: 100px;">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit"></i> Изм.</button>
+                        </form>
+                    </td>
+                    <td>
+                        <div class="status-{{ m.status }}">
+                            <i class="fas {% if m.status == 'draft' %}fa-pencil-alt{% elif m.status == 'review' %}fa-eye{% elif m.status == 'ready' %}fa-check-circle{% else %}fa-check-double{% endif %}"></i>
+                            {{ m.get_status_display }}
+                        </div>
+                    </td>
+                    <td>
+                        {% if m.customer_name %}{{ m.customer_name }}{% endif %}
+                        {% if m.customer_phone %}{% if m.customer_name %} | {% endif %}{{ m.customer_phone }}{% endif %}
+                        {% if m.customer_email %}{% if m.customer_name or m.customer_phone %} | {% endif %}{{ m.customer_email }}{% endif %}
+                        {% if not m.customer_name and not m.customer_phone and not m.customer_email %}—{% endif %}
+                        <br>
+                        <a href="{% url 'models_manager:customer_detail' m.id %}" class="btn btn-sm btn-outline-primary mt-1"><i class="fas fa-address-card"></i> Изм. данные</a>
+                    </td>
+                    <td>
+                        <form method="post" action="{% url 'models_manager:move_model' m.id %}" style="display: flex; gap: 5px;">
+                            {% csrf_token %}
+                            <select name="category" class="form-select form-select-sm">
+                                <option value="">Без папки</option>
+                                {% for cat in categories %}
+                                    <option value="{{ cat.id }}" {% if m.category.id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrows-alt"></i> Перем.</button>
+                        </form>
+                    </td>
+                    <td>
+                        <a href="{% url 'models_manager:model_detail' m.id %}" class="btn btn-sm btn-info"><i class="fas fa-eye"></i> Версии</a>
+                        {% if user.is_superuser %}
+                            <a href="{% url 'models_manager:delete_model_group' m.name %}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить ВСЕ версии модели {{ m.name }}?')"><i class="fas fa-trash"></i> Удалить</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center">Нет моделей</td</tr
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Алфавитный фильтр (внизу страницы) -->
+    <div class="alphabet-filter mb-3 mt-4">
+        <span class="me-2 fw-bold"><i class="fas fa-sort-alpha-down"></i> Быстрый поиск по букве:</span>
+        <a href="?{% if request.GET %}{{ request.GET.urlencode }}&letter=all{% else %}letter=all{% endif %}" class="btn btn-sm btn-outline-secondary me-1 mb-1 {% if current_letter == 'all' or not current_letter %}active{% endif %}">Все</a>
+        
+        {% for letter in 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ' %}
+            <a href="?{% if request.GET %}{{ request.GET.urlencode }}&letter={{ letter }}{% else %}letter={{ letter }}{% endif %}" class="btn btn-sm btn-outline-secondary me-1 mb-1 {% if current_letter == letter %}active btn-primary text-white{% endif %}">{{ letter }}</a>
+        {% endfor %}
+        
+        {% for letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' %}
+            <a href="?{% if request.GET %}{{ request.GET.urlencode }}&letter={{ letter }}{% else %}letter={{ letter }}{% endif %}" class="btn btn-sm btn-outline-secondary me-1 mb-1 {% if current_letter == letter %}active btn-primary text-white{% endif %}">{{ letter }}</a>
+        {% endfor %}
+    </div>
+
+    <a href="{% url 'models_manager:upload' %}" class="btn btn-success mt-3"><i class="fas fa-upload"></i> Загрузить новую модель</a>
+    <a href="{% url 'models_manager:category_list' %}" class="btn btn-outline-primary mt-3 ms-2"><i class="fas fa-folder-plus"></i> Управление папками</a>
+</div>
+
+<style>
+    .alphabet-filter {
+        background: #f8f9fa;
+        padding: 12px 15px;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+    }
+    .alphabet-filter .btn {
+        font-size: 0.8rem;
+        padding: 4px 10px;
+        min-width: 36px;
+    }
+    .alphabet-filter .btn.active {
+        background: linear-gradient(135deg, #2c3e50, #1a2632);
+        border-color: #2c3e50;
+        color: white;
+    }
+    .alphabet-filter .btn:hover:not(.active) {
+        background: #e9ecef;
+        transform: translateY(-1px);
+    }
+</style>
+{% endblock %}
